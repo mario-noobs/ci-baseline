@@ -6,15 +6,24 @@ on:
       java_version:
         type: string
         default: "17"
-      gradle_version:
+      working_directory:
+        description: "Working directory for Gradle commands (monorepo support)"
         type: string
-        default: "8.5"
+        default: "."
+      gradle_tasks:
+        description: "Gradle tasks to run for build and test"
+        type: string
+        default: "clean test jacocoTestReport"
       sonar_project_key:
         type: string
         required: true
-      coverage_min:
+      sonar_organization:
         type: string
-        default: "30"
+        default: "mario-noobs"
+      coverage_min:
+        description: "Minimum coverage % via HTML grep (0 to skip, prefer jacocoTestCoverageVerification in gradle_tasks)"
+        type: string
+        default: "0"
     secrets:
       SONAR_TOKEN:
         required: true
@@ -59,11 +68,10 @@ jobs:
           distribution: temurin
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: ${{ inputs.gradle_version }}
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build and test
+        working-directory: ${{ inputs.working_directory }}
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
@@ -72,10 +80,13 @@ jobs:
           DB_PASSWORD: test_password
           REDIS_HOST: 127.0.0.1
           REDIS_PORT: 6379
+          JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1jaS1jZC1waXBlbGluZS1hdC1sZWFzdC0yNTYtYml0cw==
           SPRING_PROFILES_ACTIVE: test
-        run: gradle clean test jacocoTestReport
+        run: ./gradlew ${{ inputs.gradle_tasks }}
 
       - name: Check coverage minimum
+        if: inputs.coverage_min != '0'
+        working-directory: ${{ inputs.working_directory }}
         run: |
           COVERAGE=$(grep -oP 'Total.*?(\d+)%' build/reports/jacoco/test/html/index.html | grep -oP '\d+' | tail -1 || echo "0")
           echo "Coverage: ${COVERAGE}%"
@@ -84,11 +95,18 @@ jobs:
             exit 1
           fi
 
-      - name: Upload coverage report
+      - name: Upload JaCoCo XML report
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-report
-          path: build/reports/jacoco/test/html/
+          name: jacoco-xml-report
+          path: ${{ inputs.working_directory }}/build/reports/jacoco/test/jacocoTestReport.xml
+          retention-days: 7
+
+      - name: Upload JaCoCo HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-html-report
+          path: ${{ inputs.working_directory }}/build/reports/jacoco/test/html/
           retention-days: 7
 
       - name: Upload test results
@@ -96,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: build/reports/tests/test/
+          path: ${{ inputs.working_directory }}/build/reports/tests/test/
           retention-days: 7
 
   sonarcloud:
@@ -117,20 +135,28 @@ jobs:
           distribution: temurin
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Download coverage report
+      - name: Download JaCoCo XML report
         uses: actions/download-artifact@v4
         with:
-          name: jacoco-report
-          path: build/reports/jacoco/test/html/
+          name: jacoco-xml-report
+          path: ${{ inputs.working_directory }}/build/reports/jacoco/test/
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
 
       - name: SonarCloud scan
+        working-directory: ${{ inputs.working_directory }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          gradle sonar \
+          ./gradlew compileJava sonar \
             -Dsonar.projectKey=${{ inputs.sonar_project_key }} \
-            -Dsonar.organization=mario-noobs \
+            -Dsonar.organization=${{ inputs.sonar_organization }} \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=${{ secrets.SONAR_TOKEN }}
