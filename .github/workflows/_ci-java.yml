@@ -167,15 +167,21 @@ jobs:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
 
+    env:
+      JAVA_HOME: /opt/java/openjdk
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ inputs.java_version }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ inputs.java_version }}
-          distribution: temurin
+      - name: Build OWASP args
+        id: owasp-args
+        run: |
+          ARGS="--failOnCVSS 7"
+          if [ -n "${{ secrets.NVD_API_KEY }}" ]; then
+            ARGS="$ARGS --nvdApiKey ${{ secrets.NVD_API_KEY }}"
+          fi
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
       - name: Run OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -183,9 +189,7 @@ jobs:
           project: ${{ github.repository }}
           path: ${{ inputs.working_directory }}
           format: HTML
-          args: >-
-            --failOnCVSS 7
-            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+          args: ${{ steps.owasp-args.outputs.args }}
 
       - name: Upload OWASP report
         if: always()
