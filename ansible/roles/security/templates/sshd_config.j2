@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+Port {{ security_ssh_port }}
+AddressFamily any
+ListenAddress 0.0.0.0
+
+# Authentication
+PermitRootLogin {{ security_ssh_permit_root_login }}
+PasswordAuthentication {{ security_ssh_password_authentication }}
+PubkeyAuthentication yes
+MaxAuthTries {{ security_ssh_max_auth_tries }}
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Security
+X11Forwarding no
+AllowTcpForwarding no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Subsystem
+Subsystem sftp /usr/lib/openssh/sftp-server
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO

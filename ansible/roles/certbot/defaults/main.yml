@@ -1,0 +1,8 @@
+---
+certbot_email: "admin@{{ domain }}"
+certbot_domains:
+  - "{{ domain }}"
+certbot_webroot: /var/www/html
+certbot_auto_renew: true
+certbot_renew_cron_hour: 3
+certbot_renew_cron_minute: 30

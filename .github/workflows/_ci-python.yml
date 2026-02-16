@@ -1,0 +1,65 @@
+name: CI — Python
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        type: string
+        default: "3.8"
+      requirements_file:
+        type: string
+        default: "requirements.txt"
+      lint_tool:
+        type: string
+        default: "ruff"
+      test_enabled:
+        type: boolean
+        default: false
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ inputs.python_version }}-${{ hashFiles(inputs.requirements_file) }}
+          restore-keys: pip-${{ runner.os }}-${{ inputs.python_version }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ${{ inputs.requirements_file }}
+
+      - name: Install lint tool
+        run: |
+          if [ "${{ inputs.lint_tool }}" = "ruff" ]; then
+            pip install ruff
+          elif [ "${{ inputs.lint_tool }}" = "flake8" ]; then
+            pip install flake8
+          fi
+
+      - name: Lint with ruff
+        if: inputs.lint_tool == 'ruff'
+        run: ruff check .
+
+      - name: Lint with flake8
+        if: inputs.lint_tool == 'flake8'
+        run: flake8 . --max-line-length=120 --statistics
+
+      - name: Run tests
+        if: inputs.test_enabled
+        run: |
+          pip install pytest pytest-cov
+          pytest --cov --cov-report=xml -v

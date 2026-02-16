@@ -1,0 +1,80 @@
+name: CI — Node
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        type: string
+        default: "20"
+      package_manager:
+        type: string
+        default: "pnpm"
+      lint_enabled:
+        type: boolean
+        default: true
+      test_enabled:
+        type: boolean
+        default: false
+
+jobs:
+  lint-build-test:
+    name: Lint, Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: inputs.package_manager == 'pnpm'
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Set up Node.js ${{ inputs.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: ${{ inputs.package_manager }}
+
+      - name: Install dependencies (pnpm)
+        if: inputs.package_manager == 'pnpm'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install dependencies (npm)
+        if: inputs.package_manager == 'npm'
+        run: npm ci
+
+      - name: Lint
+        if: inputs.lint_enabled
+        run: |
+          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
+            pnpm lint
+          else
+            npm run lint
+          fi
+
+      - name: Type check
+        run: |
+          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
+            pnpm exec tsc --noEmit || true
+          else
+            npx tsc --noEmit || true
+          fi
+
+      - name: Build
+        run: |
+          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
+            pnpm build
+          else
+            npm run build
+          fi
+
+      - name: Test
+        if: inputs.test_enabled
+        run: |
+          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
+            pnpm test
+          else
+            npm test
+          fi

@@ -1,0 +1,5 @@
+---
+registry_type: ghcr
+registry_url: "{{ registry }}"
+registry_username: "{{ vault_registry_username | default('') }}"
+registry_password: "{{ vault_registry_password | default('') }}"

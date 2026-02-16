@@ -1,0 +1,19 @@
+---
+common_timezone: UTC
+common_swap_size_mb: 2048
+common_sysctl_params:
+  vm.swappiness: 10
+  net.core.somaxconn: 65535
+  net.ipv4.tcp_max_syn_backlog: 65535
+  fs.file-max: 2097152
+common_packages:
+  - curl
+  - wget
+  - htop
+  - unzip
+  - jq
+  - net-tools
+  - apt-transport-https
+  - ca-certificates
+  - gnupg
+  - lsb-release

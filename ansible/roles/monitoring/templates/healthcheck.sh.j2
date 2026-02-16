@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+set -euo pipefail
+
+FAILED=0
+
+{% for name, svc in app_services.items() %}
+{% if svc.health_check is defined %}
+if ! curl -sf -o /dev/null "http://localhost:{{ svc.port }}{{ svc.health_check }}"; then
+  echo "[$(date)] FAIL: {{ name }} is not healthy"
+  FAILED=1
+fi
+{% endif %}
+{% endfor %}
+
+if [ "$FAILED" -eq 0 ]; then
+  echo "[$(date)] OK: All services healthy"
+fi
+
+exit $FAILED

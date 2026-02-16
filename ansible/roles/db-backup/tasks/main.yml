@@ -1,0 +1,25 @@
+---
+- name: DB Backup - Create backup directory
+  ansible.builtin.file:
+    path: "{{ db_backup_dir }}"
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0750"
+
+- name: DB Backup - Render backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: "{{ deploy_dir }}/backup-db.sh"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0750"
+
+- name: DB Backup - Setup cron job
+  ansible.builtin.cron:
+    name: "{{ project_name }} database backup"
+    minute: "{{ db_backup_cron_minute }}"
+    hour: "{{ db_backup_cron_hour }}"
+    job: "{{ deploy_dir }}/backup-db.sh >> {{ deploy_dir }}/backups/backup.log 2>&1"
+    user: "{{ deploy_user }}"
+  when: db_backup_enabled | bool

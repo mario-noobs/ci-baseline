@@ -1,0 +1,11 @@
+---
+- name: Full server bootstrap
+  hosts: app_servers
+  become: true
+  roles:
+    - common
+    - security
+    - docker
+    - certbot
+    - monitoring
+    - db-backup

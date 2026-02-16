@@ -1,0 +1,11 @@
+---
+docker_edition: ce
+docker_compose_version: "v2"
+docker_users:
+  - "{{ deploy_user }}"
+docker_daemon_config:
+  log-driver: json-file
+  log-opts:
+    max-size: "{{ docker_log_max_size }}"
+    max-file: "{{ docker_log_max_files | string }}"
+  storage-driver: overlay2

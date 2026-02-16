@@ -1,0 +1,39 @@
+---
+- name: Monitoring - Install logrotate
+  ansible.builtin.apt:
+    name: logrotate
+    state: present
+  when: monitoring_log_rotation_enabled | bool
+
+- name: Monitoring - Configure Docker log rotation
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/docker-containers
+    content: |
+      /var/lib/docker/containers/*/*.log {
+        rotate 7
+        daily
+        compress
+        missingok
+        notifempty
+        copytruncate
+      }
+    owner: root
+    group: root
+    mode: "0644"
+  when: monitoring_log_rotation_enabled | bool
+
+- name: Monitoring - Render health check script
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: "{{ deploy_dir }}/healthcheck.sh"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0750"
+
+- name: Monitoring - Setup health check cron
+  ansible.builtin.cron:
+    name: "{{ project_name }} health check"
+    minute: "{{ monitoring_healthcheck_cron_interval }}"
+    job: "{{ deploy_dir }}/healthcheck.sh >> {{ deploy_dir }}/backups/healthcheck.log 2>&1"
+    user: "{{ deploy_user }}"
+  when: monitoring_healthcheck_enabled | bool

@@ -1,0 +1,7 @@
+---
+# Encrypt this file with: ansible-vault encrypt vault.yml
+# Replace placeholder values with actual secrets before encrypting
+
+vault_db_password: "CHANGEME_db_password"
+vault_registry_username: "CHANGEME_github_username"
+vault_registry_password: "CHANGEME_github_pat"

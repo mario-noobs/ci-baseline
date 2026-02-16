@@ -1,0 +1,7 @@
+---
+- name: Certbot - Reload nginx
+  ansible.builtin.command:
+    cmd: "docker compose -f {{ deploy_dir }}/docker-compose.yml restart gui-app"
+  become: true
+  become_user: "{{ deploy_user }}"
+  changed_when: true

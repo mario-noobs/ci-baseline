@@ -1,0 +1,9 @@
+---
+- name: Registry - Log in to container registry
+  community.docker.docker_login:
+    registry_url: "{{ registry_url }}"
+    username: "{{ registry_username }}"
+    password: "{{ registry_password }}"
+    reauthorize: true
+  become: true
+  become_user: "{{ deploy_user }}"

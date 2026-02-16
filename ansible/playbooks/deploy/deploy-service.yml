@@ -1,0 +1,61 @@
+---
+- name: Deploy single service
+  hosts: app_servers
+  become: true
+  vars:
+    target_service: ""
+    image_tag: "latest"
+
+  tasks:
+    - name: Validate target_service is set
+      ansible.builtin.assert:
+        that:
+          - target_service != ""
+        fail_msg: "target_service must be set. Use -e 'target_service=backend-service'"
+
+    - name: Login to registry
+      ansible.builtin.include_role:
+        name: registry-login
+
+    - name: Backup current .env
+      ansible.builtin.copy:
+        src: "{{ deploy_dir }}/.env"
+        dest: "{{ deploy_dir }}/.env.bak"
+        remote_src: true
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0600"
+      ignore_errors: true
+
+    - name: Update image tag in .env
+      ansible.builtin.lineinfile:
+        path: "{{ deploy_dir }}/.env"
+        regexp: "^{{ target_service | upper | replace('-', '_') }}_TAG="
+        line: "{{ target_service | upper | replace('-', '_') }}_TAG={{ image_tag }}"
+        create: false
+
+    - name: Pull single service image
+      ansible.builtin.command:
+        cmd: "docker compose pull {{ target_service }}"
+        chdir: "{{ deploy_dir }}"
+      become: true
+      become_user: "{{ deploy_user }}"
+      changed_when: true
+
+    - name: Recreate single service
+      ansible.builtin.command:
+        cmd: "docker compose up -d --no-deps {{ target_service }}"
+        chdir: "{{ deploy_dir }}"
+      become: true
+      become_user: "{{ deploy_user }}"
+      changed_when: true
+
+    - name: Health check
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_services[target_service].port }}{{ app_services[target_service].health_check | default('/') }}"
+        status_code: 200
+      register: health_result
+      retries: 10
+      delay: 5
+      until: health_result.status == 200
+      when: app_services[target_service].health_check is defined

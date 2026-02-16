@@ -1,0 +1,2 @@
+-- Stub init.sql — replace with your project's database initialization
+-- This file is referenced by app_deploy_init_sql in commons.yml

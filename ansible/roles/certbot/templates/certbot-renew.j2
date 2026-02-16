@@ -1,0 +1,2 @@
+# {{ ansible_managed }}
+{{ certbot_renew_cron_minute }} {{ certbot_renew_cron_hour }} * * * root certbot renew --quiet --deploy-hook "docker compose -f {{ deploy_dir }}/docker-compose.yml restart gui-app"

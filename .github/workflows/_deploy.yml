@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      service:
+        type: string
+        default: "all"
+      image_tag:
+        type: string
+        required: true
+      ci_scripts_path:
+        description: "Path to the project's ci-scripts overlay directory (relative to repo root)"
+        type: string
+        default: "ci-scripts"
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      ANSIBLE_VAULT_PASSWORD:
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout project repo (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+          ansible-galaxy collection install -r ${{ inputs.ci_scripts_path }}/baseline/ansible/requirements.yml
+
+      - name: Write SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Write vault password
+        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > /tmp/.vault_pass
+
+      - name: Deploy service
+        working-directory: ${{ inputs.ci_scripts_path }}/ansible
+        run: |
+          if [ "${{ inputs.service }}" = "all" ]; then
+            PLAYBOOK="../baseline/ansible/playbooks/deploy/deploy-all.yml"
+          else
+            PLAYBOOK="../baseline/ansible/playbooks/deploy/deploy-service.yml"
+          fi
+
+          ansible-playbook \
+            -i "inventories/${{ inputs.environment }}/${{ inputs.environment }}.yml" \
+            "$PLAYBOOK" \
+            --vault-password-file /tmp/.vault_pass \
+            -e "image_tag=${{ inputs.image_tag }}" \
+            -e "target_service=${{ inputs.service }}"
+
+      - name: Cleanup secrets
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa /tmp/.vault_pass

@@ -1,0 +1,118 @@
+---
+- name: Deploy - Render docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ deploy_dir }}/docker-compose.yml"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0644"
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Render .env file
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ deploy_dir }}/.env"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0600"
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Copy nginx config files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ deploy_dir }}/nginx/"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0644"
+  with_fileglob:
+    - "{{ inventory_dir }}/nginx_conf/*"
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Render nginx.conf template
+  ansible.builtin.template:
+    src: "{{ app_deploy_nginx_template }}"
+    dest: "{{ deploy_dir }}/nginx/default.conf"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0644"
+  when: app_deploy_nginx_template | length > 0
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Copy init.sql
+  ansible.builtin.copy:
+    src: "{{ app_deploy_init_sql }}"
+    dest: "{{ deploy_dir }}/init.sql"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0644"
+  when: has_mysql | bool and app_deploy_init_sql | length > 0
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Copy application config templates
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ deploy_dir }}/config/"
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0644"
+  with_fileglob:
+    - "{{ inventory_dir }}/templates/*"
+  tags:
+    - render_only
+    - deploy
+
+- name: Deploy - Backup current .env
+  ansible.builtin.copy:
+    src: "{{ deploy_dir }}/.env"
+    dest: "{{ deploy_dir }}/.env.bak"
+    remote_src: true
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0600"
+  ignore_errors: true
+  tags:
+    - deploy
+
+- name: Deploy - Pull images
+  ansible.builtin.command:
+    cmd: docker compose pull
+    chdir: "{{ deploy_dir }}"
+  become: true
+  become_user: "{{ deploy_user }}"
+  when: app_deploy_force_pull | bool
+  changed_when: true
+  tags:
+    - deploy
+
+- name: Deploy - Start services
+  ansible.builtin.command:
+    cmd: "docker compose up -d --remove-orphans --timeout {{ app_deploy_compose_timeout }}"
+    chdir: "{{ deploy_dir }}"
+  become: true
+  become_user: "{{ deploy_user }}"
+  changed_when: true
+  tags:
+    - deploy
+
+- name: Deploy - Wait for services to be healthy
+  ansible.builtin.uri:
+    url: "http://localhost:{{ item.value.port }}{{ item.value.health_check | default('/') }}"
+    status_code: 200
+  register: health_result
+  retries: "{{ app_deploy_healthcheck_retries }}"
+  delay: "{{ app_deploy_healthcheck_delay }}"
+  until: health_result.status == 200
+  loop: "{{ app_services | dict2items }}"
+  when: item.value.health_check is defined
+  tags:
+    - deploy

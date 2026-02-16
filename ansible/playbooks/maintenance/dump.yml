@@ -1,0 +1,33 @@
+---
+- name: Database dump and fetch
+  hosts: app_servers
+  become: true
+
+  tasks:
+    - name: Dump MySQL database
+      ansible.builtin.command:
+        cmd: >-
+          docker compose -f {{ deploy_dir }}/docker-compose.yml
+          exec -T mysql mysqldump
+          -u root -p{{ vault_db_password }}
+          --single-transaction --quick --lock-tables=false
+          {{ db_backup_database }}
+      register: dump_output
+      changed_when: false
+
+    - name: Save dump to remote server
+      ansible.builtin.copy:
+        content: "{{ dump_output.stdout }}"
+        dest: "/tmp/{{ project_name }}_dump.sql"
+        mode: "0600"
+
+    - name: Fetch dump locally
+      ansible.builtin.fetch:
+        src: "/tmp/{{ project_name }}_dump.sql"
+        dest: "dumps/{{ environment }}/{{ ansible_date_time.date }}/dump.sql"
+        flat: true
+
+    - name: Cleanup remote dump
+      ansible.builtin.file:
+        path: "/tmp/{{ project_name }}_dump.sql"
+        state: absent

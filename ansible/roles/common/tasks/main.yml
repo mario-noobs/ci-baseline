@@ -1,0 +1,66 @@
+---
+- name: Common - Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Common - Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Common - Set timezone
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Common - Create deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+
+- name: Common - Create deploy directory
+  ansible.builtin.file:
+    path: "{{ deploy_dir }}"
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0755"
+
+- name: Common - Create config subdirectories
+  ansible.builtin.file:
+    path: "{{ deploy_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0755"
+  loop:
+    - config
+    - nginx
+    - backups
+
+- name: Common - Check if swap exists
+  ansible.builtin.command: swapon --show
+  register: swap_check
+  changed_when: false
+
+- name: Common - Create swap file
+  ansible.builtin.command: "fallocate -l {{ common_swap_size_mb }}M /swapfile"
+  when: swap_check.stdout == ""
+  notify: Common - Enable swap
+
+- name: Common - Set swap permissions
+  ansible.builtin.file:
+    path: /swapfile
+    mode: "0600"
+  when: swap_check.stdout == ""
+
+- name: Common - Apply sysctl parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    reload: true
+  loop: "{{ common_sysctl_params | dict2items }}"

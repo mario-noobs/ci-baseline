@@ -1,0 +1,61 @@
+---
+- name: Connectivity and health tests
+  hosts: app_servers
+  gather_facts: true
+
+  tasks:
+    - name: Test - Check SSH connectivity
+      ansible.builtin.ping:
+
+    - name: Test - Check Docker is running
+      ansible.builtin.command:
+        cmd: docker info
+      changed_when: false
+
+    - name: Test - Check Docker Compose version
+      ansible.builtin.command:
+        cmd: docker compose version
+      changed_when: false
+      register: compose_version
+
+    - name: Test - Show Docker Compose version
+      ansible.builtin.debug:
+        msg: "{{ compose_version.stdout }}"
+
+    - name: Test - Check deploy directory exists
+      ansible.builtin.stat:
+        path: "{{ deploy_dir }}"
+      register: deploy_dir_stat
+
+    - name: Test - Show deploy directory status
+      ansible.builtin.debug:
+        msg: "Deploy dir {{ deploy_dir }} exists: {{ deploy_dir_stat.stat.exists }}"
+
+    - name: Test - Check running containers
+      ansible.builtin.command:
+        cmd: docker compose ps
+        chdir: "{{ deploy_dir }}"
+      changed_when: false
+      register: containers
+      when: deploy_dir_stat.stat.exists
+      ignore_errors: true
+
+    - name: Test - Show running containers
+      ansible.builtin.debug:
+        msg: "{{ containers.stdout_lines }}"
+      when: deploy_dir_stat.stat.exists and containers is succeeded
+
+    - name: Test - Health check endpoints
+      ansible.builtin.uri:
+        url: "http://localhost:{{ item.value.port }}{{ item.value.health_check }}"
+        status_code: 200
+      loop: "{{ app_services | dict2items }}"
+      when: item.value.health_check is defined
+      ignore_errors: true
+      register: health_results
+
+    - name: Test - Show health results
+      ansible.builtin.debug:
+        msg: "{{ item.item.key }}: {{ 'HEALTHY' if item.status == 200 else 'UNHEALTHY' }}"
+      loop: "{{ health_results.results }}"
+      when: health_results is defined and item.status is defined

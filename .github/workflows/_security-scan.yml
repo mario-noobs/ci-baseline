@@ -1,0 +1,104 @@
+name: Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      scan_type:
+        type: string
+        default: "all"
+      image_ref:
+        type: string
+        default: ""
+      severity:
+        type: string
+        default: "CRITICAL,HIGH"
+
+jobs:
+  trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    if: inputs.scan_type == 'all' || inputs.scan_type == 'fs'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: ${{ inputs.severity }}
+          format: table
+          exit-code: 1
+
+  trivy-image:
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    if: inputs.image_ref != ''
+
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image_ref }}
+          severity: ${{ inputs.severity }}
+          format: table
+          exit-code: 1
+
+      - name: Upload Trivy SARIF report
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image_ref }}
+          severity: ${{ inputs.severity }}
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  owasp:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    if: inputs.scan_type == 'all' || inputs.scan_type == 'owasp'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for Gradle project
+        id: check
+        run: |
+          if [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then
+            echo "is_gradle=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_gradle=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: OWASP dependency check
+        if: steps.check.outputs.is_gradle == 'true'
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ${{ github.repository }}
+          path: .
+          format: HTML
+          args: --failOnCVSS 7
+
+      - name: Upload OWASP report
+        if: steps.check.outputs.is_gradle == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-report
+          path: reports/
+          retention-days: 14

@@ -1,0 +1,62 @@
+---
+- name: Rollback to previous tag
+  hosts: app_servers
+  become: true
+  vars:
+    target_service: ""
+
+  tasks:
+    - name: Validate target_service is set
+      ansible.builtin.assert:
+        that:
+          - target_service != ""
+        fail_msg: "target_service must be set. Use -e 'target_service=backend-service'"
+
+    - name: Check .env.bak exists
+      ansible.builtin.stat:
+        path: "{{ deploy_dir }}/.env.bak"
+      register: env_bak
+
+    - name: Fail if no backup exists
+      ansible.builtin.fail:
+        msg: "No .env.bak found — cannot rollback"
+      when: not env_bak.stat.exists
+
+    - name: Restore .env from backup
+      ansible.builtin.copy:
+        src: "{{ deploy_dir }}/.env.bak"
+        dest: "{{ deploy_dir }}/.env"
+        remote_src: true
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0600"
+
+    - name: Login to registry
+      ansible.builtin.include_role:
+        name: registry-login
+
+    - name: Pull previous image
+      ansible.builtin.command:
+        cmd: "docker compose pull {{ target_service }}"
+        chdir: "{{ deploy_dir }}"
+      become: true
+      become_user: "{{ deploy_user }}"
+      changed_when: true
+
+    - name: Recreate service with previous tag
+      ansible.builtin.command:
+        cmd: "docker compose up -d --no-deps {{ target_service }}"
+        chdir: "{{ deploy_dir }}"
+      become: true
+      become_user: "{{ deploy_user }}"
+      changed_when: true
+
+    - name: Health check after rollback
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_services[target_service].port }}{{ app_services[target_service].health_check | default('/') }}"
+        status_code: 200
+      register: health_result
+      retries: 10
+      delay: 5
+      until: health_result.status == 200
+      when: app_services[target_service].health_check is defined

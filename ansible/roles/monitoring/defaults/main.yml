@@ -1,0 +1,4 @@
+---
+monitoring_healthcheck_enabled: true
+monitoring_healthcheck_cron_interval: "*/5"
+monitoring_log_rotation_enabled: "{{ enable_log_rotation }}"

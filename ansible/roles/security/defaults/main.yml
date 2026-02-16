@@ -1,0 +1,13 @@
+---
+security_ufw_allowed_ports:
+  - { port: 22, proto: tcp }
+  - { port: 80, proto: tcp }
+  - { port: 443, proto: tcp }
+security_ufw_extra_rules: []
+security_ssh_port: 22
+security_ssh_permit_root_login: "no"
+security_ssh_password_authentication: "no"
+security_ssh_max_auth_tries: 3
+security_fail2ban_enabled: true
+security_fail2ban_maxretry: 5
+security_fail2ban_bantime: 3600

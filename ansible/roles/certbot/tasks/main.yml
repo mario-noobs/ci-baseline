@@ -1,0 +1,35 @@
+---
+- name: Certbot - Install certbot
+  ansible.builtin.apt:
+    name:
+      - certbot
+    state: present
+
+- name: Certbot - Create webroot directory
+  ansible.builtin.file:
+    path: "{{ certbot_webroot }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Certbot - Obtain certificate
+  ansible.builtin.command:
+    cmd: >-
+      certbot certonly --webroot
+      -w {{ certbot_webroot }}
+      -d {{ certbot_domains | join(' -d ') }}
+      --email {{ certbot_email }}
+      --agree-tos
+      --non-interactive
+    creates: "/etc/letsencrypt/live/{{ certbot_domains[0] }}/fullchain.pem"
+  when: ssl_enabled | bool
+
+- name: Certbot - Setup auto-renewal cron
+  ansible.builtin.template:
+    src: certbot-renew.j2
+    dest: /etc/cron.d/certbot-renew
+    owner: root
+    group: root
+    mode: "0644"
+  when: ssl_enabled | bool and certbot_auto_renew | bool

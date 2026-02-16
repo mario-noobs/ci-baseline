@@ -1,0 +1,9 @@
+---
+- name: Deploy full stack
+  hosts: app_servers
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  roles:
+    - registry-login
+    - app-deploy

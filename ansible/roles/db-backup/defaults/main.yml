@@ -1,0 +1,9 @@
+---
+db_backup_enabled: true
+db_backup_cron_hour: 2
+db_backup_cron_minute: 0
+db_backup_retention_days: 30
+db_backup_dir: "{{ deploy_dir }}/backups"
+db_backup_database: backend_db
+db_backup_user: root
+db_backup_password: "{{ vault_db_password }}"

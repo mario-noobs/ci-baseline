@@ -1,0 +1,10 @@
+---
+app_deploy_force_pull: true
+app_deploy_healthcheck_retries: 10
+app_deploy_healthcheck_delay: 5
+app_deploy_compose_timeout: 120
+
+# Project-specific file paths (set in project's commons.yml)
+# These allow each project to provide its own nginx template and init SQL
+app_deploy_nginx_template: ""
+app_deploy_init_sql: ""

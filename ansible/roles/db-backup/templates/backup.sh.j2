@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+set -euo pipefail
+
+BACKUP_DIR="{{ db_backup_dir }}"
+DATE=$(date +%Y-%m-%d_%H%M%S)
+DUMP_FILE="${BACKUP_DIR}/{{ db_backup_database }}_${DATE}.sql.gz"
+
+echo "[$(date)] Starting database backup..."
+
+docker compose -f {{ deploy_dir }}/docker-compose.yml exec -T mysql \
+  mysqldump -u {{ db_backup_user }} -p'{{ db_backup_password }}' \
+  --single-transaction --quick --lock-tables=false \
+  {{ db_backup_database }} | gzip > "${DUMP_FILE}"
+
+echo "[$(date)] Backup saved to ${DUMP_FILE}"
+
+# Cleanup old backups
+find "${BACKUP_DIR}" -name "*.sql.gz" -mtime +{{ db_backup_retention_days }} -delete
+echo "[$(date)] Cleaned up backups older than {{ db_backup_retention_days }} days"
