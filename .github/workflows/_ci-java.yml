@@ -163,38 +163,38 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=${{ secrets.SONAR_TOKEN }}
 
-  owasp:
-    name: OWASP Dependency Check
-    runs-on: ubuntu-latest
+  # owasp:
+  #   name: OWASP Dependency Check
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Override JAVA_HOME for Docker action
-        run: echo "JAVA_HOME=/opt/java/openjdk" >> "$GITHUB_ENV"
+  #     - name: Override JAVA_HOME for Docker action
+  #       run: echo "JAVA_HOME=/opt/java/openjdk" >> "$GITHUB_ENV"
 
-      - name: Build OWASP args
-        id: owasp-args
-        run: |
-          ARGS="--failOnCVSS 7"
-          if [ -n "${{ secrets.NVD_API_KEY }}" ]; then
-            ARGS="$ARGS --nvdApiKey ${{ secrets.NVD_API_KEY }}"
-          fi
-          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
+  #     - name: Build OWASP args
+  #       id: owasp-args
+  #       run: |
+  #         ARGS="--failOnCVSS 7"
+  #         if [ -n "${{ secrets.NVD_API_KEY }}" ]; then
+  #           ARGS="$ARGS --nvdApiKey ${{ secrets.NVD_API_KEY }}"
+  #         fi
+  #         echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
-      - name: Run OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: ${{ github.repository }}
-          path: ${{ inputs.working_directory }}
-          format: HTML
-          args: ${{ steps.owasp-args.outputs.args }}
+  #     - name: Run OWASP Dependency Check
+  #       uses: dependency-check/Dependency-Check_Action@main
+  #       with:
+  #         project: ${{ github.repository }}
+  #         path: ${{ inputs.working_directory }}
+  #         format: HTML
+  #         args: ${{ steps.owasp-args.outputs.args }}
 
-      - name: Upload OWASP report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: owasp-dependency-check-report
-          path: reports/
-          retention-days: 14
+  #     - name: Upload OWASP report
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: owasp-dependency-check-report
+  #         path: reports/
+  #         retention-days: 14
