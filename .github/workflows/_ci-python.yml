@@ -9,16 +9,22 @@ on:
       requirements_file:
         type: string
         default: "requirements.txt"
-      lint_tool:
-        type: string
-        default: "ruff"
       test_enabled:
         type: boolean
         default: false
+      sonar_project_key:
+        type: string
+        required: true
+      sonar_organization:
+        type: string
+        default: "mario-noobs"
+    secrets:
+      SONAR_TOKEN:
+        required: true
 
 jobs:
-  lint-and-test:
-    name: Lint & Test
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -42,24 +48,50 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r ${{ inputs.requirements_file }}
 
-      - name: Install lint tool
-        run: |
-          if [ "${{ inputs.lint_tool }}" = "ruff" ]; then
-            pip install ruff
-          elif [ "${{ inputs.lint_tool }}" = "flake8" ]; then
-            pip install flake8
-          fi
-
-      - name: Lint with ruff
-        if: inputs.lint_tool == 'ruff'
-        run: ruff check .
-
-      - name: Lint with flake8
-        if: inputs.lint_tool == 'flake8'
-        run: flake8 . --max-line-length=120 --statistics
-
       - name: Run tests
         if: inputs.test_enabled
         run: |
           pip install pytest pytest-cov
           pytest --cov --cov-report=xml -v
+
+      - name: Upload coverage report
+        if: inputs.test_enabled
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7
+
+  sonarcloud:
+    name: SonarCloud
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        if: inputs.test_enabled
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ inputs.sonar_project_key }}
+            -Dsonar.organization=${{ inputs.sonar_organization }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml

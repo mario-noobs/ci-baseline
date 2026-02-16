@@ -9,16 +9,22 @@ on:
       package_manager:
         type: string
         default: "pnpm"
-      lint_enabled:
-        type: boolean
-        default: true
       test_enabled:
         type: boolean
         default: false
+      sonar_project_key:
+        type: string
+        required: true
+      sonar_organization:
+        type: string
+        default: "mario-noobs"
+    secrets:
+      SONAR_TOKEN:
+        required: true
 
 jobs:
-  lint-build-test:
-    name: Lint, Build & Test
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -45,23 +51,6 @@ jobs:
         if: inputs.package_manager == 'npm'
         run: npm ci
 
-      - name: Lint
-        if: inputs.lint_enabled
-        run: |
-          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
-            pnpm lint
-          else
-            npm run lint
-          fi
-
-      - name: Type check
-        run: |
-          if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
-            pnpm exec tsc --noEmit || true
-          else
-            npx tsc --noEmit || true
-          fi
-
       - name: Build
         run: |
           if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
@@ -74,7 +63,50 @@ jobs:
         if: inputs.test_enabled
         run: |
           if [ "${{ inputs.package_manager }}" = "pnpm" ]; then
-            pnpm test
+            pnpm test -- --coverage
           else
-            npm test
+            npm test -- --coverage
           fi
+
+      - name: Upload coverage report
+        if: inputs.test_enabled
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+          retention-days: 7
+
+  sonarcloud:
+    name: SonarCloud
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage report
+        if: inputs.test_enabled
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ inputs.sonar_project_key }}
+            -Dsonar.organization=${{ inputs.sonar_organization }}
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
