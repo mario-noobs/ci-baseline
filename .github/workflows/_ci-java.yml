@@ -167,12 +167,12 @@ jobs:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
 
-    env:
-      JAVA_HOME: /opt/java/openjdk
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Override JAVA_HOME for Docker action
+        run: echo "JAVA_HOME=/opt/java/openjdk" >> "$GITHUB_ENV"
 
       - name: Build OWASP args
         id: owasp-args
