@@ -39,22 +39,33 @@ spec:
           volumeMounts:
             - name: rabbitmq-data
               mountPath: /var/lib/rabbitmq
+          startupProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            failureThreshold: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
           livenessProbe:
             exec:
               command:
                 - rabbitmq-diagnostics
                 - -q
                 - ping
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
           readinessProbe:
             exec:
               command:
                 - rabbitmq-diagnostics
                 - -q
                 - check_port_connectivity
-            initialDelaySeconds: 15
+            initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 200m
