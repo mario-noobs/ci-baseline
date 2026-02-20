@@ -1,0 +1,56 @@
+name: CD - Update K8s Image Tag
+
+on:
+  workflow_call:
+    inputs:
+      orchestrator_repo:
+        description: 'Orchestrator repo (e.g. mario-noobs/face-microservice)'
+        required: true
+        type: string
+      orchestrator_branch:
+        description: 'Branch to update'
+        default: 'develop'
+        type: string
+      overlay_path:
+        description: 'Kustomize overlay path (e.g. ci-scripts/k8s/overlays/dev)'
+        required: true
+        type: string
+      image_name:
+        description: 'Image name in kustomization (e.g. backend-service)'
+        required: true
+        type: string
+      image_full:
+        description: 'Full image ref (e.g. ghcr.io/mario-noobs/backend-service:sha-abc1234)'
+        required: true
+        type: string
+    secrets:
+      GH_PAT:
+        description: 'PAT with push access to orchestrator repo'
+        required: true
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.orchestrator_repo }}
+          ref: ${{ inputs.orchestrator_branch }}
+          token: ${{ secrets.GH_PAT }}
+          submodules: recursive
+
+      - uses: imranismail/setup-kustomize@v2
+
+      - name: Update image tag
+        working-directory: ${{ inputs.overlay_path }}
+        run: |
+          kustomize edit set image ${{ inputs.image_name }}=${{ inputs.image_full }}
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ inputs.overlay_path }}/kustomization.yaml
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore(cd): update ${{ inputs.image_name }} image tag [skip ci]"
+          git push
