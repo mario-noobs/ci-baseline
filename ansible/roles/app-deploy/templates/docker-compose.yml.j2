@@ -80,16 +80,27 @@ services:
     networks:
       - {{ network_name }}
 {% if svc.depends_on is defined %}
-    depends_on:
+{% set dep_ns = namespace(filtered=[]) %}
 {% for dep in svc.depends_on %}
-{% if dep in infra_services and infra_services[dep].health_check_cmd is defined %}
-      {{ dep }}:
-        condition: service_healthy
+{# Keep dep only if it's another app service, or an enabled infra service. #}
+{% if dep in app_services %}
+{% set dep_ns.filtered = dep_ns.filtered + [(dep, 'service_started')] %}
+{% elif dep in infra_services and (infra_services[dep].enabled | default(true) | bool) %}
+{% if infra_services[dep].health_check_cmd is defined %}
+{% set dep_ns.filtered = dep_ns.filtered + [(dep, 'service_healthy')] %}
 {% else %}
-      {{ dep }}:
-        condition: service_started
+{% set dep_ns.filtered = dep_ns.filtered + [(dep, 'service_started')] %}
 {% endif %}
+{% endif %}
+{# else: dep refers to an external or disabled service — skip it. #}
 {% endfor %}
+{% if dep_ns.filtered | length > 0 %}
+    depends_on:
+{% for dep, cond in dep_ns.filtered %}
+      {{ dep }}:
+        condition: {{ cond }}
+{% endfor %}
+{% endif %}
 {% endif %}
 {% if svc.resources is defined and svc.resources.memory is defined %}
     deploy:
