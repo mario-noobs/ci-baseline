@@ -60,7 +60,7 @@ services:
 {% for name, svc in app_services.items() %}
 
   {{ name }}:
-    image: {{ svc.image }}:${{{ name | upper | replace('-', '_') }}_TAG:-{{ svc.tag }}}
+    image: {{ svc.image }}:${{ '{' }}{{ name | upper | replace('-', '_') }}_TAG:-{{ svc.tag }}{{ '}' }}
     container_name: {{ name }}
 {% if svc.env is defined %}
     environment:
