@@ -7,3 +7,12 @@
     reauthorize: true
   become: true
   become_user: "{{ deploy_user }}"
+  when:
+    - registry_username | default('') | length > 0
+    - registry_password | default('') | length > 0
+
+- name: Registry - Skip login (no credentials provided)
+  ansible.builtin.debug:
+    msg: "No registry credentials set — relying on public image pulls for {{ registry_url }}."
+  when:
+    - (registry_username | default('') | length == 0) or (registry_password | default('') | length == 0)
