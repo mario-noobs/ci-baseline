@@ -16,11 +16,19 @@ on:
         description: "Path to the project's ci-scripts overlay directory (relative to repo root)"
         type: string
         default: "ci-scripts"
+      tailscale_tags:
+        description: "Comma-separated Tailscale tags (e.g. tag:ci). If set, the runner joins the tailnet as an ephemeral node before deploy."
+        type: string
+        default: ""
     secrets:
       SSH_PRIVATE_KEY:
         required: true
       ANSIBLE_VAULT_PASSWORD:
         required: true
+      TS_OAUTH_CLIENT_ID:
+        required: false
+      TS_OAUTH_SECRET:
+        required: false
 
 jobs:
   deploy:
@@ -33,6 +41,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Connect to Tailscale
+        if: inputs.tailscale_tags != ''
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: ${{ inputs.tailscale_tags }}
 
       - name: Install Ansible
         run: |
