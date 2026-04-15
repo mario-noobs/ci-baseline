@@ -115,7 +115,12 @@ services:
 
 networks:
   {{ network_name }}:
+{% if network_external | default(false) | bool %}
+    external: true
+    name: {{ network_name }}
+{% else %}
     driver: bridge
+{% endif %}
 
 volumes:
 {% for name, svc in infra_services.items() %}
