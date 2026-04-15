@@ -24,7 +24,7 @@ on:
       SSH_PRIVATE_KEY:
         required: true
       ANSIBLE_VAULT_PASSWORD:
-        required: true
+        required: false
       TS_OAUTH_CLIENT_ID:
         required: false
       TS_OAUTH_SECRET:
@@ -63,8 +63,14 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Write vault password
-        run: echo "${{ secrets.ANSIBLE_VAULT_PASSWORD }}" > /tmp/.vault_pass
+      - name: Write vault password (optional)
+        env:
+          VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          if [ -n "$VAULT_PASS" ]; then
+            echo "$VAULT_PASS" > /tmp/.vault_pass
+            chmod 600 /tmp/.vault_pass
+          fi
 
       - name: Deploy service
         working-directory: ${{ inputs.ci_scripts_path }}/ansible
@@ -75,10 +81,15 @@ jobs:
             PLAYBOOK="../baseline/ansible/playbooks/deploy/deploy-service.yml"
           fi
 
+          VAULT_ARG=""
+          if [ -s /tmp/.vault_pass ]; then
+            VAULT_ARG="--vault-password-file /tmp/.vault_pass"
+          fi
+
           ansible-playbook \
             -i "inventories/${{ inputs.environment }}/${{ inputs.environment }}.yml" \
             "$PLAYBOOK" \
-            --vault-password-file /tmp/.vault_pass \
+            $VAULT_ARG \
             -e "image_tag=${{ inputs.image_tag }}" \
             -e "target_service=${{ inputs.service }}"
 
