@@ -122,6 +122,18 @@ networks:
     driver: bridge
 {% endif %}
 
+{% set vols = namespace(any=false) %}
+{% for name, svc in infra_services.items() %}
+{% if svc.enabled | default(true) | bool and svc.volumes is defined %}
+{% for vol in svc.volumes %}
+{% set vol_name = vol.split(':')[0] %}
+{% if not vol_name.startswith('.') and not vol_name.startswith('/') %}
+{% set vols.any = true %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% if vols.any %}
 volumes:
 {% for name, svc in infra_services.items() %}
 {% if svc.enabled | default(true) | bool and svc.volumes is defined %}
@@ -133,3 +145,4 @@ volumes:
 {% endfor %}
 {% endif %}
 {% endfor %}
+{% endif %}
