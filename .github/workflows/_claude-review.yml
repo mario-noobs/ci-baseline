@@ -37,6 +37,12 @@ jobs:
             - Security issues (injection, auth, secrets handling, unsafe deserialization)
             - Performance regressions and obvious inefficiencies
             - Adherence to CLAUDE.md guidelines if the file exists in the repo
+            - Whether the PR actually satisfies the intent of any linked issue
+
+            If the PR title or body references an issue (e.g. "closes #123",
+            "fixes #45", "unblocks #67"), run `gh issue view <number>` to read
+            that issue's description and acceptance criteria, then verify the
+            diff fulfils them. Flag any AC items the diff misses.
 
             Post EXACTLY ONE comment in the PR conversation summarising the
             review. Do not post inline comments on individual lines.
@@ -48,8 +54,11 @@ jobs:
             If issues are found, follow the headline with a short markdown
             bullet list, each bullet of the form:
               - `path/to/file.ext:LINE` — <issue + suggested fix in one line>
+            or for missing AC items:
+              - **AC miss (#<issue>)** — <which criterion + what's missing>
 
             Skip nitpicks and style-only feedback. Be concrete and brief.
           claude_args: |
             --model ${{ vars.CLAUDE_MODEL || 'claude-sonnet-4-6' }}
             --max-turns ${{ vars.CLAUDE_REVIEW_MAX_TURNS || '8' }}
+            --allowed-tools "Glob,Grep,LS,Read,mcp__github_comment__update_claude_comment,Bash(gh issue view:*),Bash(gh pr view:*),Bash(gh issue list:*),Bash(gh pr list:*)"
