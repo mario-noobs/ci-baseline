@@ -1,0 +1,44 @@
+name: Claude PR Review
+
+# Runs an automated code review when a PR carries the `claude-review` label.
+# Fires on label-add and on every push to a labelled PR (synchronize/reopened).
+
+on:
+  workflow_call:
+
+jobs:
+  review:
+    name: Claude review
+    if: |
+      (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'claude-review'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+
+            Focus on:
+            - Correctness and likely bugs (off-by-one, null handling, race conditions)
+            - Security issues (injection, auth, secrets handling, unsafe deserialization)
+            - Performance regressions and obvious inefficiencies
+            - Adherence to CLAUDE.md guidelines if the file exists in the repo
+
+            Read the diff and post findings as PR review comments on the relevant lines.
+            Skip nitpicks and style-only feedback. Be concrete and brief.
+          claude_args: |
+            --model ${{ vars.CLAUDE_MODEL || 'claude-sonnet-4-6' }}
+            --max-turns ${{ vars.CLAUDE_REVIEW_MAX_TURNS || '8' }}

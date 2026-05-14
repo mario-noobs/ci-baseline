@@ -1,0 +1,30 @@
+name: Claude
+
+# Requires:
+# - Official Anthropic Claude GitHub App installed: https://github.com/apps/claude
+# - Repository secret ANTHROPIC_API_KEY
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  assistant:
+    uses: mario-noobs/ci-baseline/.github/workflows/_claude-assistant.yml@main
+    secrets: inherit
+
+  review:
+    uses: mario-noobs/ci-baseline/.github/workflows/_claude-review.yml@main
+    secrets: inherit

@@ -1,0 +1,75 @@
+name: CI
+
+# Composition example for a Python + Postgres backend with a Node frontend.
+# Compose freely — baseline ships composite actions (actions/*); your workflow
+# brings the services, env, and step order. See README "Composition recipes".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ielts
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ielts
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ielts -d ielts"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ielts:test@localhost:5432/ielts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mario-noobs/ci-baseline/actions/setup-python@main
+        with:
+          python_version: "3.11"
+          requirements_file: requirements.txt
+          dev_requirements_file: requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Apply Alembic migrations
+        run: alembic upgrade head
+
+      - uses: mario-noobs/ci-baseline/actions/run-pytest@main
+        with:
+          paths: tests/
+          args: "-v --tb=short"
+          coverage_paths: "services bot.utils"
+          coverage_min: "15"
+
+  web:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mario-noobs/ci-baseline/actions/setup-node@main
+        with:
+          node_version: "20"
+          package_manager: npm
+          working_directory: web
+
+      - name: Build Storybook
+        working-directory: web
+        run: npm run build-storybook -- --quiet
+
+  security:
+    name: Security scan
+    uses: mario-noobs/ci-baseline/.github/workflows/_security-scan.yml@main
+    with:
+      scan_type: fs
+      severity: CRITICAL,HIGH

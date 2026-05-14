@@ -59,41 +59,107 @@ Edit these files for your project:
 ./scripts/deploy-dev.sh
 ```
 
-## Reusable Workflows
+## CI building blocks
 
-Service repos call these via `workflow_call`:
+The baseline ships two kinds of building blocks. Pick the one whose shape fits the job, compose them in your own workflow file.
+
+### Composite actions (`actions/*`)
+
+Step-level reusables. Use these inside your own job — you keep control of `services:`, `env`, `working-directory`, and step order. Composite actions are how you assemble a CI pipeline without forcing the baseline to know your stack.
+
+| Action | Purpose |
+|---|---|
+| `actions/setup-python` | Set up Python + pip cache + install base & optional dev requirements |
+| `actions/run-pytest` | Run pytest with composed coverage args (`--cov=<paths>`, `--cov-fail-under`, XML report) |
+| `actions/setup-node` | Set up Node.js + cache + install for `npm` / `pnpm` / `yarn` |
+
+### Reusable workflows (`.github/workflows/_*.yml`)
+
+Job-level reusables. Use these when the unit of work is a whole job with event-routing or a self-contained stack-agnostic flow.
 
 | Workflow | Purpose |
-|----------|---------|
-| `_ci-java.yml` | Java build, test, JaCoCo, SonarCloud |
-| `_ci-python.yml` | Python lint (ruff/flake8), test |
-| `_ci-node.yml` | Node build, lint, test |
+|---|---|
+| `_claude-assistant.yml` | Responds to `@claude` mentions in issues / PR comments |
+| `_claude-review.yml` | Auto code review on PRs labelled `claude-review` |
 | `_docker-build.yml` | Docker build + push to GHCR |
-| `_security-scan.yml` | Trivy + OWASP scanning |
-| `_deploy.yml` | Ansible deploy to target env (checks out caller repo with submodules) |
+| `_security-scan.yml` | Trivy filesystem / image scanning |
+| `_deploy.yml` | Ansible deploy (checks out caller repo with submodules) |
 
-### Usage in service repo
+> **Why no `_ci-<stack>.yml`?** Reusable workflows can't accept `services:` from their caller. Forcing them to bake in a specific service set (Postgres? Redis?) made the baseline grow per stack. Composite actions let each project bring its own services, so the baseline stays small.
+
+## Composition recipes
+
+Copy [`examples/.github/workflows/ci.yml`](examples/.github/workflows/ci.yml) and adapt. Below is the Python backend + Node frontend pattern (matches `ielts-learning-telegram-bot`):
 
 ```yaml
 jobs:
-  ci:
-    uses: mario-noobs/ci-baseline/.github/workflows/_ci-java.yml@main
-    with:
-      sonar_project_key: my-org_my-service
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: app, POSTGRES_PASSWORD: test, POSTGRES_DB: app }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U app -d app" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://app:test@localhost:5432/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mario-noobs/ci-baseline/actions/setup-python@main
+        with: { python_version: "3.11", dev_requirements_file: requirements-dev.txt }
+      - run: ruff check .
+      - run: alembic upgrade head
+      - uses: mario-noobs/ci-baseline/actions/run-pytest@main
+        with:
+          coverage_paths: "services bot.utils"
+          coverage_min: "15"
 
-  deploy:
-    needs: [ci]
-    uses: mario-noobs/ci-baseline/.github/workflows/_deploy.yml@main
-    with:
-      environment: dev
-      image_tag: sha-abc1234
-      ci_scripts_path: ci-scripts    # path to overlay in your repo
-    secrets:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mario-noobs/ci-baseline/actions/setup-node@main
+        with: { working_directory: web }
+      - working-directory: web
+        run: npm run build-storybook -- --quiet
+
+  security:
+    uses: mario-noobs/ci-baseline/.github/workflows/_security-scan.yml@main
+    with: { scan_type: fs, severity: CRITICAL,HIGH }
 ```
+
+Project-specific bits — service credentials, env, working-dir, test paths, coverage targets — live in **your workflow file**, not in baseline. To pin to a release, replace `@main` with a tag (e.g. `@v1.2.0`).
+
+## Claude integration
+
+Drop this single file:
+
+```yaml
+# .github/workflows/claude.yml
+on:
+  issue_comment: { types: [created] }
+  pull_request_review_comment: { types: [created] }
+  issues: { types: [opened, assigned] }
+  pull_request: { types: [opened, synchronize, reopened, labeled] }
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+jobs:
+  assistant: { uses: mario-noobs/ci-baseline/.github/workflows/_claude-assistant.yml@main, secrets: inherit }
+  review:    { uses: mario-noobs/ci-baseline/.github/workflows/_claude-review.yml@main,    secrets: inherit }
+```
+
+Then:
+- Install the official Claude GitHub App: <https://github.com/apps/claude>.
+- Add repo secret `ANTHROPIC_API_KEY`.
+- (Optional) Create a `claude-review` label for the auto-review flow.
+- (Optional) Override model/turns via `vars.CLAUDE_MODEL` (default `claude-sonnet-4-6`), `vars.CLAUDE_MAX_TURNS`, `vars.CLAUDE_REVIEW_MAX_TURNS`.
+
+**Assistant** — mention `@claude` in any issue, PR comment, or new issue body to ask Claude to implement, fix, answer, or create follow-up issues.
+
+**Review** — add the label `claude-review` to a PR; Claude posts inline review comments. Re-runs on every new push while the label is present.
 
 ## Ansible Roles
 

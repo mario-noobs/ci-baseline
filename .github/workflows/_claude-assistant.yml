@@ -1,0 +1,35 @@
+name: Claude Assistant
+
+# Responds to @claude mentions in issues and PR comments.
+# Install the official Claude GitHub App from https://github.com/apps/claude
+# and add ANTHROPIC_API_KEY to repository secrets.
+
+on:
+  workflow_call:
+
+jobs:
+  assistant:
+    name: Run Claude
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model ${{ vars.CLAUDE_MODEL || 'claude-sonnet-4-6' }}
+            --max-turns ${{ vars.CLAUDE_MAX_TURNS || '10' }}

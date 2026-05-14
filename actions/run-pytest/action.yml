@@ -1,0 +1,58 @@
+name: Run pytest
+description: Run pytest with optional coverage collection and a fail-under gate.
+
+inputs:
+  paths:
+    description: Path(s) passed positionally to pytest for test discovery.
+    required: false
+    default: "tests/"
+  args:
+    description: Extra pytest CLI flags (e.g. "-v --tb=short").
+    required: false
+    default: "-v"
+  coverage_paths:
+    description: |
+      Space-separated source paths for coverage (e.g. "services bot.utils").
+      Empty disables coverage entirely.
+    required: false
+    default: ""
+  coverage_min:
+    description: |
+      Pass to --cov-fail-under. Use "0" to disable the gate (no flag emitted).
+      Ignored when coverage_paths is empty.
+    required: false
+    default: "0"
+  working_directory:
+    description: Directory to run pytest from. Coverage XML lands at <working_directory>/coverage.xml.
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Run pytest
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        PYTEST_PATHS: ${{ inputs.paths }}
+        PYTEST_ARGS: ${{ inputs.args }}
+        COVERAGE_PATHS: ${{ inputs.coverage_paths }}
+        COVERAGE_MIN: ${{ inputs.coverage_min }}
+      run: |
+        set -euo pipefail
+        cmd=(pytest)
+        # shellcheck disable=SC2206
+        cmd+=( ${PYTEST_PATHS} )
+        # shellcheck disable=SC2206
+        cmd+=( ${PYTEST_ARGS} )
+        if [ -n "${COVERAGE_PATHS}" ]; then
+          for p in ${COVERAGE_PATHS}; do
+            cmd+=( "--cov=${p}" )
+          done
+          cmd+=( --cov-report=xml --cov-report=term-missing )
+          if [ "${COVERAGE_MIN}" != "0" ]; then
+            cmd+=( "--cov-fail-under=${COVERAGE_MIN}" )
+          fi
+        fi
+        echo "Running: ${cmd[*]}"
+        "${cmd[@]}"

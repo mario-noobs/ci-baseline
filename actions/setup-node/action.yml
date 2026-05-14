@@ -1,0 +1,67 @@
+name: Setup Node
+description: Install Node.js + cache for the chosen package manager + install dependencies.
+
+inputs:
+  node_version:
+    description: Node.js version (passed to actions/setup-node).
+    required: false
+    default: "20"
+  package_manager:
+    description: One of "npm" | "pnpm" | "yarn".
+    required: false
+    default: "npm"
+  working_directory:
+    description: Directory containing the lockfile and package.json.
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      if: inputs.package_manager == 'pnpm'
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9
+
+    - name: Set up Node.js ${{ inputs.node_version }} (pnpm)
+      if: inputs.package_manager == 'pnpm'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: pnpm
+        cache-dependency-path: ${{ inputs.working_directory }}/pnpm-lock.yaml
+
+    - name: Set up Node.js ${{ inputs.node_version }} (npm)
+      if: inputs.package_manager == 'npm'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: npm
+        cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+    - name: Set up Node.js ${{ inputs.node_version }} (yarn)
+      if: inputs.package_manager == 'yarn'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: yarn
+        cache-dependency-path: ${{ inputs.working_directory }}/yarn.lock
+
+    - name: Install dependencies (pnpm)
+      if: inputs.package_manager == 'pnpm'
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: pnpm install --frozen-lockfile
+
+    - name: Install dependencies (npm)
+      if: inputs.package_manager == 'npm'
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: npm ci
+
+    - name: Install dependencies (yarn)
+      if: inputs.package_manager == 'yarn'
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: yarn install --frozen-lockfile
