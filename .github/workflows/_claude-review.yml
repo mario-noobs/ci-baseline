@@ -38,14 +38,18 @@ jobs:
             - Performance regressions and obvious inefficiencies
             - Adherence to CLAUDE.md guidelines if the file exists in the repo
 
-            ALWAYS post a top-level summary comment with your verdict, even when
-            you find nothing concrete to flag — start it with either "✅ No concerns
-            found" or "⚠️ Issues found" followed by a one-sentence rationale, then
-            (if applicable) a short bullet list of the specific issues.
+            Post EXACTLY ONE comment in the PR conversation summarising the
+            review. Do not post inline comments on individual lines.
 
-            For each specific issue, also post an inline review comment on the
-            relevant line. Skip nitpicks and style-only feedback. Be concrete
-            and brief.
+            The comment MUST start with one of:
+              "✅ No concerns found — <one-sentence rationale>"
+              "⚠️ Issues found — <one-sentence rationale>"
+
+            If issues are found, follow the headline with a short markdown
+            bullet list, each bullet of the form:
+              - `path/to/file.ext:LINE` — <issue + suggested fix in one line>
+
+            Skip nitpicks and style-only feedback. Be concrete and brief.
           claude_args: |
             --model ${{ vars.CLAUDE_MODEL || 'claude-sonnet-4-6' }}
             --max-turns ${{ vars.CLAUDE_REVIEW_MAX_TURNS || '8' }}
