@@ -28,6 +28,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          show_full_output: true
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
@@ -37,8 +38,14 @@ jobs:
             - Performance regressions and obvious inefficiencies
             - Adherence to CLAUDE.md guidelines if the file exists in the repo
 
-            Read the diff and post findings as PR review comments on the relevant lines.
-            Skip nitpicks and style-only feedback. Be concrete and brief.
+            ALWAYS post a top-level summary comment with your verdict, even when
+            you find nothing concrete to flag — start it with either "✅ No concerns
+            found" or "⚠️ Issues found" followed by a one-sentence rationale, then
+            (if applicable) a short bullet list of the specific issues.
+
+            For each specific issue, also post an inline review comment on the
+            relevant line. Skip nitpicks and style-only feedback. Be concrete
+            and brief.
           claude_args: |
             --model ${{ vars.CLAUDE_MODEL || 'claude-sonnet-4-6' }}
             --max-turns ${{ vars.CLAUDE_REVIEW_MAX_TURNS || '8' }}
